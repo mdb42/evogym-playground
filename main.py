@@ -42,54 +42,42 @@ def parse_arguments():
     return config
 
 
-def evaluate_robot(body, connections, render=False, logger=None):
-    env = gym.make('Walker-v0', body=body, connections=connections, 
-                   render_mode='human' if render else None)
+def evaluate_robot(body, connections, env_name='Walker-v0', render_mode='none', 
+                  video_path=None, episode_steps=500, fps=30, logger=None):
+    # Set up environment based on render mode
+    if render_mode == 'human':
+        env = gym.make(env_name, body=body, connections=connections, render_mode='human')
+    elif render_mode == 'video':
+        env = gym.make(env_name, body=body, connections=connections, render_mode='rgb_array')
+        if not hasattr(env, 'metadata'):
+            env.metadata = {}
+        env.metadata['render_fps'] = fps
+    else:  # 'none'
+        env = gym.make(env_name, body=body, connections=connections, render_mode=None)
     
+    # Run simulation
     total_reward = 0
     obs, _ = env.reset()
+    frames = [] if render_mode == 'video' else None
     
-    for step in range(500):
+    for step in range(episode_steps):
         action = env.action_space.sample()
         obs, reward, terminated, truncated, _ = env.step(action)
         total_reward += reward
         
-        if terminated or truncated:
-            break
-    
-    env.close()
-    return total_reward
-
-def evaluate_robot_with_video(body, connections, video_path, fps=30, logger=None):
-    env = gym.make('Walker-v0', body=body, connections=connections, 
-                   render_mode='rgb_array')
-    
-    # Set metadata before any rendering
-    if not hasattr(env, 'metadata'):
-        env.metadata = {}
-    env.metadata['render_fps'] = fps
-    
-    frames = []
-    total_reward = 0
-    obs, _ = env.reset()
-    
-    for step in range(500):
-        action = env.action_space.sample()
-        obs, reward, terminated, truncated, _ = env.step(action)
-        total_reward += reward
-        
-        frame = env.render()
-        frames.append(frame)
+        if render_mode == 'video':
+            frames.append(env.render())
         
         if terminated or truncated:
             break
     
     env.close()
     
-    # Save video
-    imageio.mimsave(video_path, frames, fps=fps, macro_block_size=1)
-    if logger:
-        logger.info(f"Saved video to {video_path}")
+    # Save video if applicable
+    if render_mode == 'video' and video_path and frames:
+        imageio.mimsave(video_path, frames, fps=fps, macro_block_size=1)
+        if logger:
+            logger.info(f"Saved video to {video_path}")
     
     return total_reward
 
@@ -101,12 +89,15 @@ def main():
     config = parse_arguments()
     ensure_directories_exist()
     
+    # Add episode_steps - will fix this in the config later
+    config.setdefault('episode_steps', 500)
+    
     logger.info(f"Configuration: pop_size={config['population_size']}, "
                 f"generations={config['max_generations']}, env={config['env']}")
     
     # Evolution loop
     for generation in range(config['max_generations']):
-        logger.info(f"Generation {generation + 1}/{config['max_generations']}")
+        logger.info(f"\n=== Generation {generation + 1}/{config['max_generations']} ===")
         
         best_fitness = -float('inf')
         best_robot = None
@@ -115,9 +106,16 @@ def main():
         # Evaluate population
         for i in range(config['population_size']):
             body, connections = sample_robot((5, 5))
-            fitness = evaluate_robot(body, connections, 
-                                   render=(config['render'] and i == 0 and generation == 0), 
-                                   logger=logger)
+            
+            # Only render first robot of first generation
+            show_robot = config['render'] and i == 0 and generation == 0
+            
+            fitness = evaluate_robot(
+                body, connections, 
+                env_name=config['env'],
+                render_mode='human' if show_robot else 'none',
+                episode_steps=config['episode_steps']
+            )
             
             logger.debug(f"Robot {i+1}: Fitness = {fitness:.2f}")
             
@@ -127,18 +125,30 @@ def main():
                 best_robot = (body, connections)
                 best_robot_idx = i + 1
         
-        logger.info(f"Generation {generation + 1} best fitness: {best_fitness:.2f} (Robot {best_robot_idx})")
+        logger.info(f"Generation {generation + 1} best: Robot {best_robot_idx} with fitness {best_fitness:.2f}")
         
         # Save video of generation's best
         if config['render'] and best_robot:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            video_path = f"output/videos/{best_fitness:+06.2f}_g{generation:02d}_{timestamp}.mp4"
-            evaluate_robot_with_video(best_robot[0], best_robot[1], video_path, logger=logger)
+            timestamp = datetime.now().strftime("%H%M%S")
+            video_path = f"output/videos/f{best_fitness:+07.2f}_g{generation:02d}_{timestamp}.mp4"
+            evaluate_robot(
+                best_robot[0], best_robot[1], 
+                env_name=config['env'],
+                render_mode='video',
+                video_path=video_path,
+                episode_steps=config['episode_steps'],
+                logger=logger
+            )
     
     # Show the final best robot
     if config['render'] and best_robot:
-        logger.info("Rendering final best robot...")
-        evaluate_robot(best_robot[0], best_robot[1], render=True, logger=logger)
+        logger.info("\nRendering final best robot...")
+        evaluate_robot(
+            best_robot[0], best_robot[1], 
+            env_name=config['env'],
+            render_mode='human',
+            episode_steps=config['episode_steps']
+        )
 
 
 if __name__ == "__main__":
