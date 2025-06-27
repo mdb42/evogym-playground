@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 venv/
 .vscode/
+output/
 logs/
 *.log
 *.tmp
@@ -13,3 +14,4 @@ logs/
 *.dvi
 *.latexmkrc
 *.synctex.gz
+config.json
