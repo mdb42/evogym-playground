@@ -8,6 +8,8 @@ from evogym import sample_robot
 import argparse
 import imageio
 from datetime import datetime
+import numpy as np
+import random
 
 from src.utils.bootstrap import load_config, ensure_directories_exist
 from src.utils.logger import setup_logger
@@ -16,11 +18,21 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="EvolutionGym Experiment")
     parser.add_argument('--config', type=str, default='config.json', 
                         help="Path to configuration file")
-    parser.add_argument('--pop-size', type=int, default=None)
-    parser.add_argument('--generations', type=int, default=None)
-    parser.add_argument('--env', default=None)
-    parser.add_argument('--render', action='store_true')
-    parser.add_argument('--no-render', action='store_true')
+    
+    parser.add_argument('--pop-size', type=int, default=None,
+                        help="Population size")
+    parser.add_argument('--generations', type=int, default=None,
+                        help="Number of generations")
+    parser.add_argument('--render', action='store_true',
+                        help="Enable rendering")
+    parser.add_argument('--no-render', action='store_true',
+                        help="Disable rendering")
+    parser.add_argument('--no-video', action='store_true',
+                        help="Disable video saving even if render is on")
+    parser.add_argument('--env', default=None,
+                        help="Environment name (e.g., Walker-v0, Climber-v0)")
+    parser.add_argument('--seed', type=int, default=None,
+                        help="Random seed for reproducibility")
     args = parser.parse_args()
 
     # Load config
@@ -33,12 +45,16 @@ def parse_arguments():
         config['max_generations'] = args.generations
     if args.env is not None:
         config['env'] = args.env
+    if args.seed is not None:
+        config['seed'] = args.seed
     if args.render:
         config['render'] = True
     elif args.no_render:
         config['render'] = False
-    # Otherwise keep what's in config.json
 
+    if args.no_video:
+        config['save_videos'] = False
+    
     return config
 
 
@@ -89,8 +105,11 @@ def main():
     config = parse_arguments()
     ensure_directories_exist()
     
-    # Add episode_steps - will fix this in the config later
-    config.setdefault('episode_steps', 500)
+    # Set random seed if provided
+    if 'seed' in config:
+        random.seed(config['seed'])
+        np.random.seed(config['seed'])
+        logger.info(f"Random seed set to {config['seed']}")
     
     logger.info(f"Configuration: pop_size={config['population_size']}, "
                 f"generations={config['max_generations']}, env={config['env']}")
@@ -105,7 +124,7 @@ def main():
         
         # Evaluate population
         for i in range(config['population_size']):
-            body, connections = sample_robot((5, 5))
+            body, connections = sample_robot(config['robot_size'])
             
             # Only render first robot of first generation
             show_robot = config['render'] and i == 0 and generation == 0
@@ -114,7 +133,8 @@ def main():
                 body, connections, 
                 env_name=config['env'],
                 render_mode='human' if show_robot else 'none',
-                episode_steps=config['episode_steps']
+                episode_steps=config['episode_steps'],
+                fps=config['video_fps']
             )
             
             logger.debug(f"Robot {i+1}: Fitness = {fitness:.2f}")
@@ -128,7 +148,7 @@ def main():
         logger.info(f"Generation {generation + 1} best: Robot {best_robot_idx} with fitness {best_fitness:.2f}")
         
         # Save video of generation's best
-        if config['render'] and best_robot:
+        if config['save_videos'] and config['render'] and best_robot:
             timestamp = datetime.now().strftime("%H%M%S")
             video_path = f"output/videos/f{best_fitness:+07.2f}_g{generation:02d}_{timestamp}.mp4"
             evaluate_robot(
@@ -137,8 +157,15 @@ def main():
                 render_mode='video',
                 video_path=video_path,
                 episode_steps=config['episode_steps'],
+                fps=config['video_fps'],
                 logger=logger
             )
+        
+        # Save best robot structure periodically
+        if generation % config['save_best_every'] == 0 or generation == config['max_generations'] - 1:
+            save_path = f"output/robots/best_g{generation:02d}_f{best_fitness:+07.2f}.npz"
+            np.savez(save_path, body=best_robot[0], connections=best_robot[1])
+            logger.info(f"Saved best robot to {save_path}")
     
     # Show the final best robot
     if config['render'] and best_robot:

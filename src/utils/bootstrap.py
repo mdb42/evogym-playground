@@ -9,11 +9,33 @@ from pathlib import Path
 
 # Default configuration
 DEFAULT_CONFIG = {
+    # Basic experiment settings
     "population_size": 20,
     "max_generations": 50,
     "env": "Walker-v0",
+    "episode_steps": 500,
     "render": True,
-    "log_level": "INFO"
+    "log_level": "INFO",
+    
+    # Robot constraints
+    "robot_size": [5, 5],
+    
+    # Evolution parameters
+    "mutation_rate": 0.1,
+    "mutation_amount": 0.3,
+    "crossover_rate": 0.7,
+    "elitism": 2,  # Keep top N robots unchanged
+    "tournament_size": 3,
+    
+    # Control parameters
+    "control_type": "random",  # "random", "gp", "neural"
+    "gp_max_depth": 5,
+    "gp_primitives": ["add", "sub", "mul", "if_greater"],
+    
+    # Output settings
+    "save_best_every": 5,
+    "save_videos": True,
+    "video_fps": 30
 }
 
 DEFAULT_DIRECTORIES = [
