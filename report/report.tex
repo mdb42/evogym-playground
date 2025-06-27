@@ -1,0 +1,139 @@
+\documentclass[journal,12pt,onecolumn]{IEEEtran}
+% LaTeX compilation is working correctly now
+\usepackage{mathtools,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{multirow}
+
+\doublespacing
+
+\hypersetup{
+   colorlinks=true,
+   linkcolor=blue,
+   citecolor=black,
+   urlcolor=blue
+}
+
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{12pt plus 4pt minus 2pt}{12pt plus 2pt minus 2pt}
+\titlespacing*{\subsection}{0pt}{12pt plus 4pt minus 2pt}{8pt plus 2pt minus 2pt}
+\titlespacing*{\subsubsection}{0pt}{12pt plus 4pt minus 2pt}{6pt plus 2pt minus 2pt}
+
+\title{EvolutionGym Playground: Experiments}
+\author{
+   \IEEEauthorblockN{Matthew D. Branson} \\
+   \IEEEauthorblockA{\textit{Department of Computer Science} \\
+   \textit{Missouri State University}\\
+   Springfield, MO \\
+   branson773@live.missouristate.edu
+   }
+}
+
+\date{June 27, 2025}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper presents the implementation and analysis of...
+\end{abstract}
+
+\begin{IEEEkeywords}
+Genetic Algorithms, Binary Encoding, Optimization, Evolutionary Computing
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Evolutionary algorithms (EAs) have shown great promise in solving complex optimization problems across various domains. Recent work in EvolutionGym \cite{evogym2021} has demonstrated the potential for evolutionary approaches in robotics and control tasks. This research builds upon these foundations to explore new methodologies.
+
+\subsection{Motivation}
+The motivation behind this work is to explore...
+
+\subsection{Problem Statement}
+The primary problem addressed in this study is...
+
+\subsection{Contributions}
+The contributions of this paper include...
+
+\subsection{Overview}
+This paper is organized as follows...
+
+\section{Related Work}
+In this section, we review prior applications of evolutionary algorithms to control tasks and highlight key benchmarks, including those relevant to EvolutionGym.
+
+\subsection{Evolutionary Approaches to Control}
+Previous research has demonstrated...
+
+\subsection{Benchmarking and Simulation Environments}
+Frameworks such as OpenAI Gym, PyBullet, and EvolutionGym have been used to evaluate...
+
+\subsection{Multi-Objective and Morphological Evolution}
+Recent works exploring multi-objective optimization and morphology evolution have shown...
+
+\section{Methodology}
+This section details our genome representation, evolutionary process, and implementation within the EvolutionGym environment.
+
+\subsection{Problem Formulation}
+Our objective is to evolve controllers/morphologies that maximize performance in...
+
+\subsection{Genome Representation}
+We define each individual as a...
+
+\subsection{Evolutionary Operators}
+Selection, crossover, and mutation are applied as follows...
+
+\subsection{Fitness Function}
+The fitness function rewards agents that...
+
+\subsection{Implementation Details}
+All experiments were implemented using...
+
+\section{Experimental Setup}
+We describe the selected environments, experimental parameters, and evaluation protocol.
+
+\subsection{Environment Selection}
+Tasks were chosen from EvolutionGym to provide coverage across locomotion, manipulation, and mixed-behavior challenges...
+
+\subsection{Evaluation Metrics}
+We measured performance using average reward, success rate, and behavior diversity...
+
+\subsection{Hyperparameters}
+We used a population size of..., mutation rate of..., over N generations...
+
+\section{Results}
+The results of our experiments demonstrate the effectiveness of...
+
+\subsection{Performance Across Environments}
+The evolved agents achieved...
+
+\subsection{Comparison to Baselines}
+Compared to baseline controllers, our approach...
+
+\subsection{Ablation Study}
+To assess the contribution of each component, we...
+
+\section{Discussion}
+We discuss the implications, limitations, and potential for future work.
+
+\subsection{Insights from Evolved Behavior}
+Analysis of behavior reveals that...
+
+\subsection{Generalization and Overfitting}
+Agents were evaluated in perturbed environments to assess...
+
+\subsection{Limitations}
+This work is limited by...
+
+\section{Conclusion and Future Work}
+In this study, we presented... In future work, we aim to...
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
