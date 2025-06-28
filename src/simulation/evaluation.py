@@ -1,28 +1,37 @@
 
-import imageio
+# evogym-playground/src/simulation/evaluation.py
+"""
+Evaluation module for EvolutionGym robots.
+Keeping this separate for parallelization.
+"""
+
 import gymnasium as gym
 
 
-def evaluate_robot(body, connections, env_name='Walker-v0', render_mode='none', 
-                  video_path=None, episode_steps=500, fps=30, logger=None):
+def evaluate_phenotype(body, connections, controller=None, env_name='Walker-v0', 
+                      render_mode='none', episode_steps=500, fps=30):
     # Set up environment based on render mode
     if render_mode == 'human':
         env = gym.make(env_name, body=body, connections=connections, render_mode='human')
     elif render_mode == 'video':
         env = gym.make(env_name, body=body, connections=connections, render_mode='rgb_array')
-        if not hasattr(env, 'metadata'):
-            env.metadata = {}
-        env.metadata['render_fps'] = fps
-    else:  # 'none'
+    else: # 'none'
         env = gym.make(env_name, body=body, connections=connections, render_mode=None)
     
-    # Run simulation
+    # Set render FPS in metadata to avoid gymnasium warning
+    env.metadata['render_fps'] = fps
+    
+    # Run evaluation
     total_reward = 0
     obs, _ = env.reset()
     frames = [] if render_mode == 'video' else None
     
     for step in range(episode_steps):
-        action = env.action_space.sample()
+        if controller:
+            action = controller(obs)
+        else:
+            action = env.action_space.sample()
+
         obs, reward, terminated, truncated, _ = env.step(action)
         total_reward += reward
         
@@ -34,10 +43,23 @@ def evaluate_robot(body, connections, env_name='Walker-v0', render_mode='none',
     
     env.close()
     
-    # Save video if applicable
-    if render_mode == 'video' and video_path and frames:
-        imageio.mimsave(video_path, frames, fps=fps, macro_block_size=1)
-        if logger:
-            logger.info(f"Saved video to {video_path}")
+    return total_reward, frames
+
+
+def evaluate_individual(individual, **kwargs):
+    """
+    Wrapper for evaluating and updating an individual's fitness.
+    """
+    update_fitness = kwargs.pop('update_fitness', True)
     
-    return total_reward
+    fitness, frames = evaluate_phenotype(
+        individual.body,
+        individual.connections,
+        controller=individual.controller,
+        **kwargs
+    )
+    
+    if update_fitness:
+        individual.fitness = fitness
+    
+    return fitness, frames

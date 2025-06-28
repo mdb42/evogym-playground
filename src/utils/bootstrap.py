@@ -2,9 +2,8 @@
 """
 Project bootstrap
 """
-import os
+
 import json
-import sys
 from pathlib import Path
 
 # Default configuration

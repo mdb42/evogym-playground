@@ -2,10 +2,9 @@
 """
 Experimenting with EvolutionGym.
 """
+
 import evogym.envs # Required to override MuJo environments
-from evogym import sample_robot
 import argparse
-from datetime import datetime
 import numpy as np
 import random
 

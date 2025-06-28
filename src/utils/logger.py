@@ -1,4 +1,7 @@
 # evogym-playground/src/utils/logger.py
+"""
+Custom logging setup for EvolutionGym experiments.
+"""
 
 import logging
 import os
