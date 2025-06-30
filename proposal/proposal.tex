@@ -1,0 +1,70 @@
+\documentclass[journal,12pt,onecolumn]{IEEEtran}
+\usepackage{mathtools,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{multirow}
+
+\doublespacing
+
+\hypersetup{
+   colorlinks=true,
+   linkcolor=blue,
+   citecolor=black,
+   urlcolor=blue
+}
+
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{12pt plus 4pt minus 2pt}{12pt plus 2pt minus 2pt}
+\titlespacing*{\subsection}{0pt}{12pt plus 4pt minus 2pt}{8pt plus 2pt minus 2pt}
+\titlespacing*{\subsubsection}{0pt}{12pt plus 4pt minus 2pt}{6pt plus 2pt minus 2pt}
+
+\title{Adaptive Neuroevolutionary Control for Soft Robots Under Morphological Degradation}
+\author{
+   \IEEEauthorblockN{Matthew D. Branson \\ Partner Name} \\
+   \IEEEauthorblockA{\textit{Department of Computer Science} \\
+   \textit{Missouri State University}\\
+   Springfield, MO \\
+   branson773@live.missouristate.edu \\
+   partner.email@live.missouristate.edu
+   }
+}
+
+\date{June 30, 2025}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+\subsection{Problem Statement}
+Real robots degrade over time - actuators weaken, materials wear, components fail. Most neuroevolutionary approaches assume static morphologies. Need for control systems that maintain performance despite progressive degradation in soft robotic systems. Focus on robustness and sustained performance rather than just peak performance.
+
+\subsection{Context and Background}
+EvolutionGym \cite{evogym2021} provides benchmarks for evolving soft robots. NEAT \cite{stanley2002evolving} and HyperNEAT \cite{stanley2009hypercube} as primary algorithms for evolving neural network topologies and weights. Gap in research on handling time-varying robot properties. Practical deployment requires acknowledging that robots don't maintain factory specifications.
+
+\section{Proposed Solution}
+
+\subsection{Our Approach}
+Implement NEAT and HyperNEAT in EvolutionGym. Train with degradation through actuator strength decay over timesteps or morphological changes between epochs. Multi-objective fitness including task performance and degradation resilience. Gradual wear vs sudden damage models. Build on existing evolution framework with neural network controllers. Define degradation schedules and patterns.
+
+\subsection{Innovation}
+Considering time-varying robot properties during evolution. Optimizing for sustained performance over operational lifetime rather than peak performance. NEAT vs HyperNEAT comparison under degradation - geometric biases of HyperNEAT for symmetric degradation. Bridges sim-to-real gap. Central Pattern Generators with Matsuoka oscillators? CPGs could control actuator voxels with rhythmic contractions. Phase differences between oscillators could create peristaltic motion. The CPPN could encode both the CPG coupling topology along with parameters like frequency/amplitude. Degradation could affect oscillator coupling strength.
+
+\section{Success Metrics}
+
+\subsection{Evaluation Methods}
+Performance retention (end vs start), cumulative lifetime reward, variance as degradation increases, adaptation speed. Test on Walker, Climber, Carrier environments. Baselines: random, vanilla NEAT/HyperNEAT, hand-designed controllers. Statistical analysis across multiple runs. Ablation studies on degradation schedules. Performance curves over robot lifetime.
+
+\subsection{Expected Outcomes}
+Better performance retention with degradation-aware controllers. HyperNEAT advantages for symmetric degradation patterns. Deliverables: NEAT/HyperNEAT implementations, degradation framework, comparative analysis. Emergent behaviors like conservative gaits or redundant strategies. Foundation for online adaptation research.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

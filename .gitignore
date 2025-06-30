@@ -1,4 +1,3 @@
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,4 +13,7 @@ logs/
 *.dvi
 *.latexmkrc
 *.synctex.gz
+*.blg
+*.fdb_latexmk
+*.fls
 config.json
