@@ -1,4 +1,4 @@
-# evogym-playground/src/utils/bootstrap.py
+# src/utils/bootstrap.py
 """
 Project bootstrap
 """
@@ -9,8 +9,8 @@ from pathlib import Path
 # Default configuration
 DEFAULT_CONFIG = {
     # Basic experiment settings
-    "population_size": 20,
-    "max_generations": 50,
+    "population_size": 100,
+    "max_generations": 150,
     "env": "Walker-v0",
     "episode_steps": 500,
     "render": True,
@@ -23,13 +23,28 @@ DEFAULT_CONFIG = {
     "mutation_rate": 0.1,
     "mutation_amount": 0.3,
     "crossover_rate": 0.7,
-    "elitism": 2,  # Keep top N robots unchanged
+    "elitism": 1,
     "tournament_size": 3,
     
     # Control parameters
-    "control_type": "random",  # "random", "gp", "neural"
-    "gp_max_depth": 5,
-    "gp_primitives": ["add", "sub", "mul", "if_greater"],
+    "control_type": "neat",  # "random", "neat", "hyperneat"
+
+    "neat_config": {
+        "compatibility_threshold": 3.0,
+        "target_species": 10,
+        "excess_coefficient": 1.0,
+        "disjoint_coefficient": 1.0,
+        "weight_coefficient": 0.5,
+        "crossover_rate": 0.8,
+        "stagnation_threshold": 20,
+        
+        "weight_mutation_rate": 0.8,
+        "weight_perturb_rate": 0.9,
+        "weight_mutation_power": 0.3,
+
+        "connection_add_rate": 0.08,
+        "node_add_rate": 0.04,        
+    },    
     
     # Output settings
     "save_best_every": 5,

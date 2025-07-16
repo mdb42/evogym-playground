@@ -1,4 +1,4 @@
-# evogym-playground/src/utils/logger.py
+# src/utils/logger.py
 """
 Custom logging setup for EvolutionGym experiments.
 """

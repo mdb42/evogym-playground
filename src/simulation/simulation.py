@@ -1,4 +1,4 @@
-# evogym-playground/src/simulation/simulation.py
+# src/simulation/simulation.py
 """
 Simulation class for running EvolutionGym experiments.
 """
@@ -8,9 +8,12 @@ from datetime import datetime
 import imageio
 from evogym import sample_robot
 
-from .individual import Individual
+from src.individual import RandomIndividual, NEATIndividual
 from .evolution import create_next_generation
 from .evaluation import evaluate_individual, evaluate_phenotype
+from src.neat.species import SpeciesManager
+import pickle
+from pathlib import Path
 
 class Simulation:
     def __init__(self, config, logger):
@@ -18,14 +21,31 @@ class Simulation:
         self.logger = logger
         self.population = []
         self.generation = 0
+        self.species_manager = None
+        self.checkpoint_path = Path("output/checkpoint.pkl")
+
+        # Try to load from a checkpoint, otherwise initialize
+        if not self.load_checkpoint():
+            if self.config.get('control_type') == 'neat':
+                self.species_manager = SpeciesManager(self.config.get('neat_config', {}))
         
     def initialize_population(self):
         """Create initial random population"""
         self.population = []
+        
+        control_type = self.config.get('control_type', 'random')
+        
         for _ in range(self.config['population_size']):
             body, connections = sample_robot(self.config['robot_size'])
-            self.population.append(Individual(body, connections))
-        self.logger.info(f"Initialized population of {len(self.population)} robots")
+            
+            if control_type == 'random':
+                individual = RandomIndividual(body, connections)
+            elif control_type == 'neat':
+                individual = NEATIndividual(body, connections, neat_config=self.config)
+            else:
+                raise ValueError(f"Unknown control type: {control_type}")
+                
+            self.population.append(individual)
         
     def evaluate_population(self):
         """Evaluate all individuals in current population"""
@@ -82,39 +102,68 @@ class Simulation:
     
     def run(self):
         """Run the full simulation"""
-        for gen in range(self.config['max_generations']):
+        self.logger.info("--- Simulation run started ---")
+        start_gen = self.generation
+
+        if start_gen == 0:
+            self.logger.info("Initializing new population for Generation 1...")
+            self.initialize_population()
+            self.logger.info("Population initialized.")
+
+        for gen in range(start_gen, self.config['max_generations']):
             self.generation = gen
-            self.logger.info(f"\n=== Generation {gen + 1}/{self.config['max_generations']} ===")
+            self.logger.info(f"\n=== Starting Generation {gen + 1}/{self.config['max_generations']} ===")
             
             # Create/evolve population
-            if gen == 0:
-                self.initialize_population()
-            else:
-                self.population = create_next_generation(self.population, self.config)
+            if gen > start_gen:
+                self.logger.info("Creating next generation...")
+                self.population = create_next_generation(self.population, self.species_manager, self.config)
+                self.logger.info("Next generation created.")
             
             # Evaluate
+            self.logger.info(f"Evaluating population of {len(self.population)} individuals...")
             best_fitness, best_individual, best_idx = self.evaluate_population()
+            self.logger.info("Population evaluation complete.")
             
-            # Log stats
-            fitnesses = [ind.fitness for ind in self.population]
-            avg_fitness = np.mean(fitnesses)
+            fitnesses = [ind.fitness for ind in self.population if ind.fitness is not None]
+            avg_fitness = np.mean(fitnesses) if fitnesses else 0
             self.logger.info(
-                f"Generation {gen} - Best: {best_fitness:.2f} (Robot {best_idx}), "
+                f"Generation {gen} Stats - Best: {best_fitness:.2f} (Robot {best_idx}), "
                 f"Avg: {avg_fitness:.2f}"
             )
             
-            # Save best
+            self.logger.info("Saving best individual...")
             self.save_best_individual(best_individual, best_fitness)
+            
+            self.logger.info("Saving checkpoint...")
+            self.save_checkpoint()
+            self.logger.info(f"Finished Generation {gen + 1}")
+
+        self.logger.info("Simulation loop finished successfully")
+        self.remove_checkpoint()
+
+    def save_checkpoint(self):
+        state = {
+            'generation': self.generation,
+            'population': self.population,
+            'species_manager': self.species_manager
+        }
+        with open(self.checkpoint_path, 'wb') as f:
+            pickle.dump(state, f)
+        self.logger.info(f"Checkpoint saved for generation {self.generation}")
+
+    def load_checkpoint(self):
+        if self.checkpoint_path.exists():
+            with open(self.checkpoint_path, 'rb') as f:
+                state = pickle.load(f)
+            self.generation = state['generation'] + 1
+            self.population = state['population']
+            self.species_manager = state['species_manager']
+            self.logger.info(f"Checkpoint loaded. Resuming from generation {self.generation}.")
+            return True
+        return False
         
-        # Final render
-        if self.config['render'] and best_individual:
-            self.logger.info("\nRendering final best robot...")
-            evaluate_phenotype(
-                best_individual.body, 
-                best_individual.connections,
-                controller=best_individual.controller,
-                env_name=self.config['env'],
-                render_mode='human',
-                episode_steps=self.config['episode_steps'],
-                fps=self.config['video_fps']
-            )
+    def remove_checkpoint(self):
+        if self.checkpoint_path.exists():
+            self.checkpoint_path.unlink()
+            self.logger.info("Simulation complete. Checkpoint removed.")

@@ -1,5 +1,4 @@
-
-# evogym-playground/src/simulation/evaluation.py
+# src/simulation/evaluation.py
 """
 Evaluation module for EvolutionGym robots.
 Keeping this separate for parallelization.
@@ -51,6 +50,13 @@ def evaluate_individual(individual, **kwargs):
     Wrapper for evaluating and updating an individual's fitness.
     """
     update_fitness = kwargs.pop('update_fitness', True)
+    env_name = kwargs.get('env_name', 'Walker-v0')
+    
+    # Need a temporary env to get action space for RandomIndividual
+    if hasattr(individual, 'set_action_space'):
+        env = gym.make(env_name, body=individual.body, connections=individual.connections)
+        individual.set_action_space(env.action_space)
+        env.close()
     
     fitness, frames = evaluate_phenotype(
         individual.body,

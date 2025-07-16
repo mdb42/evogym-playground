@@ -1,4 +1,4 @@
-# evogym-playground/main.py
+# main.py
 """
 Experimenting with EvolutionGym.
 """
@@ -17,6 +17,9 @@ def parse_arguments():
     parser.add_argument('--config', type=str, default='config.json', 
                         help="Path to configuration file")
     
+    parser.add_argument('--control_type', type=str, default='random',
+                        choices=['random', 'neat', 'hyperneat'],
+                        help="Type of control policy to use")    
     parser.add_argument('--pop-size', type=int, default=None,
                         help="Population size")
     parser.add_argument('--generations', type=int, default=None,
@@ -37,6 +40,8 @@ def parse_arguments():
     config = load_config(args.config)
     
     # Only override if explicitly provided
+    if args.control_type:
+        config['control_type'] = args.control_type
     if args.pop_size is not None:
         config['population_size'] = args.pop_size
     if args.generations is not None:
