@@ -1,137 +1,77 @@
-\documentclass[journal,12pt,onecolumn]{IEEEtran}
-\usepackage{mathtools,amssymb,amsfonts}
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. 
+% If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
-\usepackage{algorithm}
 \usepackage{graphicx}
+\usepackage{textcomp}
 \usepackage{xcolor}
-\usepackage{float}
-\usepackage{setspace}
-\usepackage{subcaption}
-\usepackage[hidelinks]{hyperref}
-\usepackage{multirow}
-
-\doublespacing
-
-\hypersetup{
-   colorlinks=true,
-   linkcolor=blue,
-   citecolor=black,
-   urlcolor=blue
-}
-
-\usepackage{titlesec}
-\titlespacing*{\section}{0pt}{12pt plus 4pt minus 2pt}{12pt plus 2pt minus 2pt}
-\titlespacing*{\subsection}{0pt}{12pt plus 4pt minus 2pt}{8pt plus 2pt minus 2pt}
-\titlespacing*{\subsubsection}{0pt}{12pt plus 4pt minus 2pt}{6pt plus 2pt minus 2pt}
-
-\title{Adaptive Neuroevolutionary Control for Soft Robots Under Morphological Degradation}
-\author{
-   \IEEEauthorblockN{Matthew D. Branson \\ Partner Name} \\
-   \IEEEauthorblockA{\textit{Department of Computer Science} \\
-   \textit{Missouri State University}\\
-   Springfield, MO \\
-   branson773@live.missouristate.edu \\
-   partner.email@live.missouristate.edu
-   }
-}
-
-\date{June 27, 2025}
-
+\usepackage[hidelinks]{hyperref}  % Added for clickable links
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
+
+\title{Neuroevolutionary Control for Soft Robots: \\ A NEAT Implementation Study}
+
+\author{\IEEEauthorblockN{Matthew D. Branson}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{Missouri State University}\\
+Springfield, MO \\
+branson773@live.missouristate.edu}
+}
+
 \maketitle
 
 \begin{abstract}
-This paper presents the implementation and analysis of...
+This paper presents a from-scratch implementation of NeuroEvolution of Augmenting Topologies (NEAT) applied to the coevolution of morphology and control in soft robots within the EvolutionGym framework. The study focuses on walker robots, exploring how simultaneous evolution of body structure and neural network controllers can produce effective locomotion strategies.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Genetic Algorithms, Binary Encoding, Optimization, Evolutionary Computing
+NEAT, neuroevolution, soft robotics, coevolution, morphology, neural networks, EvolutionGym
 \end{IEEEkeywords}
 
 \section{Introduction}
+The design of effective controllers for soft robots presents unique challenges due to their high-dimensional, non-linear dynamics and complex morphological properties. Traditional control approaches often struggle with the computational complexity and adaptability requirements of soft robotic systems. Neuroevolutionary methods, particularly NeuroEvolution of Augmenting Topologies (NEAT), offer promising alternatives by simultaneously optimizing both neural network topology and parameters.
 
-Evolutionary algorithms (EAs) have shown great promise in solving complex optimization problems across various domains. Recent work in EvolutionGym \cite{evogym2021} has demonstrated the potential for evolutionary approaches in robotics and control tasks. This research builds upon these foundations to explore new methodologies.
-
-\subsection{Motivation}
-The motivation behind this work is to explore...
-
-\subsection{Problem Statement}
-The primary problem addressed in this study is...
-
-\subsection{Contributions}
-The contributions of this paper include...
-
-\subsection{Overview}
-This paper is organized as follows...
+This study implements NEAT from scratch and applies it to the coevolution of morphology and control in soft robots using the EvolutionGym framework \cite{evogym2021}. The focus is on walker robots, examining how the simultaneous evolution of body structure and neural network controllers can discover effective locomotion strategies.
 
 \section{Related Work}
-In this section, we review prior applications of evolutionary algorithms to control tasks and highlight key benchmarks, including those relevant to EvolutionGym.
+The EvolutionGym benchmark \cite{evogym2021} provides a comprehensive framework for evolving soft robots, supporting both morphological and control optimization. This platform enables researchers to explore the complex interactions between robot structure and behavior in simulated environments.
 
-\subsection{Evolutionary Approaches to Control}
-Previous research has demonstrated...
+NEAT \cite{stanley2002evolving} revolutionized neuroevolution by introducing topology evolution through complexification, starting with minimal networks and gradually adding nodes and connections. This approach addresses the competing conventions problem and enables the discovery of appropriate network architectures alongside optimal weights.
 
-\subsection{Benchmarking and Simulation Environments}
-Frameworks such as OpenAI Gym, PyBullet, and EvolutionGym have been used to evaluate...
-
-\subsection{Multi-Objective and Morphological Evolution}
-Recent works exploring multi-objective optimization and morphology evolution have shown...
+HyperNEAT \cite{stanley2009hypercube} extends NEAT's principles by using compositional pattern-producing networks (CPNs) to generate neural network weights based on geometric relationships, showing particular promise for spatially-structured problems.
 
 \section{Methodology}
-This section details our genome representation, evolutionary process, and implementation within the EvolutionGym environment.
+This section describes the implementation of NEAT and its application to soft robot evolution within the EvolutionGym framework.
 
-\subsection{Problem Formulation}
-Our objective is to evolve controllers/morphologies that maximize performance in...
+\subsection{NEAT Implementation}
+A complete NEAT implementation was developed from scratch, including:
+\begin{itemize}
+    \item Genome representation with node and connection genes
+    \item Crossover operators that preserve topological structure
+    \item Mutation operators for adding nodes and connections
+    \item Speciation mechanism to protect topological innovation
+    \item Fitness sharing within species
+\end{itemize}
 
-\subsection{Genome Representation}
-We define each individual as a...
+\subsection{Coevolution Framework}
+The study focuses on the coevolution of robot morphology and neural network controllers for walker robots. 
 
-\subsection{Evolutionary Operators}
-Selection, crossover, and mutation are applied as follows...
-
-\subsection{Fitness Function}
-The fitness function rewards agents that...
-
-\subsection{Implementation Details}
-All experiments were implemented using...
-
-\section{Experimental Setup}
-We describe the selected environments, experimental parameters, and evaluation protocol.
-
-\subsection{Environment Selection}
-Tasks were chosen from EvolutionGym to provide coverage across locomotion, manipulation, and mixed-behavior challenges...
-
-\subsection{Evaluation Metrics}
-We measured performance using average reward, success rate, and behavior diversity...
-
-\subsection{Hyperparameters}
-We used a population size of..., mutation rate of..., over N generations...
+\subsection{Experimental Setup}
+Experiments were conducted using walker robots in the EvolutionGym environment.
 
 \section{Results}
-The results of our experiments demonstrate the effectiveness of...
+This section presents the results of applying NEAT to morphology-control coevolution in soft robots.
 
-\subsection{Performance Across Environments}
-The evolved agents achieved...
+\section{Conclusion}
+This study demonstrates a from-scratch implementation of NEAT applied to the coevolution of soft robot morphology and control. The work provides insights into how neuroevolutionary approaches can discover effective locomotion strategies through simultaneous optimization of body structure and neural network controllers.
 
-\subsection{Comparison to Baselines}
-Compared to baseline controllers, our approach...
+\section*{Acknowledgment}
 
-\subsection{Ablation Study}
-To assess the contribution of each component, we...
-
-\section{Discussion}
-We discuss the implications, limitations, and potential for future work.
-
-\subsection{Insights from Evolved Behavior}
-Analysis of behavior reveals that...
-
-\subsection{Generalization and Overfitting}
-Agents were evaluated in perturbed environments to assess...
-
-\subsection{Limitations}
-This work is limited by...
-
-\section{Conclusion and Future Work}
-In this study, we presented... In future work, we aim to...
+The author would like to thank the professor for guidance throughout this project and acknowledge that the scope was adjusted from the original proposal due to time and resource constraints.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
