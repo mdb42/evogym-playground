@@ -8,8 +8,7 @@ import argparse
 import numpy as np
 import random
 
-from src.utils.bootstrap import load_config, ensure_directories_exist
-from src.utils.logger import setup_logger
+from src.utils import load_config, ensure_directories_exist, setup_logger
 from src.simulation.simulation import Simulation
 
 def parse_arguments():

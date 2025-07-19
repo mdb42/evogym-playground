@@ -1,4 +1,4 @@
-# evogym-playground/src/neat/species.py
+# src/neat/species.py
 import numpy as np
 import random
 from typing import List, Dict, Optional
@@ -48,7 +48,7 @@ class Species:
         total = sum(m.fitness for m in valid_members)
         return total / len(valid_members)
     
-    def is_stagnant(self, threshold: int = 15) -> bool:
+    def is_stagnant(self, threshold: int) -> bool:
         return self.last_improvement > threshold
 
 class SpeciesManager:    
@@ -150,12 +150,14 @@ class SpeciesManager:
         self.threshold = np.clip(self.threshold, 0.5, 10.0)
 
     def cull_stagnant_species(self):
+        stagnation_threshold = self.config.get('stagnation_threshold', 15)
+
         if len(self.species) <= 2:
             return
         
         self.species = {
-            sid: s for sid, s in self.species.items() 
-            if not s.is_stagnant() or s.age < 5
+            sid: s for sid, s in self.species.items()
+            if not s.is_stagnant(stagnation_threshold) or s.age < 5
         }
 
     def select_species_for_reproduction(self) -> Optional[Species]:

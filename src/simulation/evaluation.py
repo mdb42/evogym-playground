@@ -31,7 +31,7 @@ def evaluate_phenotype(body, connections, controller=None, env_name='Walker-v0',
         else:
             action = env.action_space.sample()
 
-        obs, reward, terminated, truncated, _ = env.step(action)
+        obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
         
         if render_mode == 'video':

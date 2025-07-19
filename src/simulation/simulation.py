@@ -8,9 +8,9 @@ from datetime import datetime
 import imageio
 from evogym import sample_robot
 
-from src.individual import RandomIndividual, NEATIndividual
+from src.simulation.individual import RandomIndividual, NEATIndividual
 from .evolution import create_next_generation
-from .evaluation import evaluate_individual, evaluate_phenotype
+from .evaluation import evaluate_individual
 from src.neat.species import SpeciesManager
 import pickle
 from pathlib import Path
