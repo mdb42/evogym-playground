@@ -7,13 +7,15 @@ import numpy as np
 from datetime import datetime
 import imageio
 from evogym import sample_robot
+import pickle
+from pathlib import Path        
+import multiprocessing
+from functools import partial
 
 from src.simulation.individual import RandomIndividual, NEATIndividual
 from .evolution import create_next_generation
-from .evaluation import evaluate_individual
+from .evaluation import evaluate_individual_worker, evaluate_phenotype
 from src.neat.species import SpeciesManager
-import pickle
-from pathlib import Path
 
 class Simulation:
     def __init__(self, config, logger):
@@ -32,7 +34,6 @@ class Simulation:
     def initialize_population(self):
         """Create initial random population"""
         self.population = []
-        
         control_type = self.config.get('control_type', 'random')
         
         for _ in range(self.config['population_size']):
@@ -46,84 +47,88 @@ class Simulation:
                 raise ValueError(f"Unknown control type: {control_type}")
                 
             self.population.append(individual)
-        
+
     def evaluate_population(self):
         """Evaluate all individuals in current population"""
         best_fitness = -float('inf')
         best_individual = None
         best_idx = -1
         
+        # Prepare the evaluation function with config
+        eval_func = partial(
+            evaluate_individual_worker,
+            env_name=self.config['env'],
+            episode_steps=self.config['episode_steps'],
+            fps=self.config['video_fps'],
+            render_mode='none',
+            log_level=self.config.get('log_level', 'INFO')
+        )
+        
+        # Evaluate in parallel
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            # NOTE: To stop, just kill the terminal - checkpoint will resume
+            # I can't figure out how to gracefully stop multiprocessing workers
+            # Nor can I stop the gym version spam coming from every worker
+            updated_population = pool.map(eval_func, self.population)
+
+        self.population = updated_population
+        
+        # Find best individual
         for i, individual in enumerate(self.population):
-            # Render first individual robot of first generation
-            render_robot = self.config['render'] and i == 0 and self.generation == 0
-            
-            fitness, _ = evaluate_individual(
-                individual,
-                env_name=self.config['env'],
-                render_mode='human' if render_robot else 'none',
-                episode_steps=self.config['episode_steps'],
-                fps=self.config['video_fps']
-            )
-            
-            self.logger.debug(f"Robot {i}: Fitness = {fitness:.2f}")
-            
-            if fitness > best_fitness:
-                best_fitness = fitness
+            if individual.fitness is not None and individual.fitness > best_fitness:
+                best_fitness = individual.fitness
                 best_individual = individual
                 best_idx = i + 1
-                
+
         return best_fitness, best_individual, best_idx
     
     def save_best_individual(self, best_individual, best_fitness):
         """Save best individual video and structure"""
         if self.config['save_videos'] and self.config['render']:
-            _, frames = evaluate_individual(
-                best_individual,
+            _, frames = evaluate_phenotype(
+                best_individual.body,
+                best_individual.connections,
+                controller=best_individual.controller,
                 render_mode='video',
                 env_name=self.config['env'],
                 episode_steps=self.config['episode_steps'],
-                fps=self.config['video_fps'],
-                update_fitness=False
+                fps=self.config['video_fps']
             )
             
-            # Save video
             if frames:
                 timestamp = datetime.now().strftime("%H%M%S")
                 video_path = f"output/videos/f{best_fitness:+07.2f}_g{self.generation:02d}_{timestamp}.mp4"
                 imageio.mimsave(video_path, frames, fps=self.config['video_fps'], macro_block_size=1)
                 self.logger.info(f"Saved video to {video_path}")
         
-        # Save structure
         if self.generation % self.config['save_best_every'] == 0 or \
            self.generation == self.config['max_generations'] - 1:
             save_path = f"output/robots/best_g{self.generation:02d}_f{best_fitness:+07.2f}.npz"
             np.savez(save_path, body=best_individual.body, connections=best_individual.connections)
             self.logger.info(f"Saved best robot to {save_path}")
-    
+
     def run(self):
         """Run the full simulation"""
         self.logger.info("--- Simulation run started ---")
+        self.logger.info("Note: To stop simulation, kill terminal. Progress is saved via checkpoints.")
+        
         start_gen = self.generation
 
         if start_gen == 0:
-            self.logger.info("Initializing new population for Generation 1...")
+            self.logger.info("Initializing new population...")
             self.initialize_population()
-            self.logger.info("Population initialized.")
 
         for gen in range(start_gen, self.config['max_generations']):
             self.generation = gen
-            self.logger.info(f"\n=== Starting Generation {gen + 1}/{self.config['max_generations']} ===")
+            self.logger.info(f"\n=== Generation {gen + 1}/{self.config['max_generations']} ===")
             
-            # Create/evolve population
             if gen > start_gen:
-                self.logger.info("Creating next generation...")
-                self.population = create_next_generation(self.population, self.species_manager, self.config)
-                self.logger.info("Next generation created.")
+                self.population = create_next_generation(
+                    self.population, self.species_manager, self.config
+                )
             
             # Evaluate
-            self.logger.info(f"Evaluating population of {len(self.population)} individuals...")
             best_fitness, best_individual, best_idx = self.evaluate_population()
-            self.logger.info("Population evaluation complete.")
             
             fitnesses = [ind.fitness for ind in self.population if ind.fitness is not None]
             avg_fitness = np.mean(fitnesses) if fitnesses else 0
@@ -137,7 +142,7 @@ class Simulation:
             
             self.logger.info("Saving checkpoint...")
             self.save_checkpoint()
-            self.logger.info(f"Finished Generation {gen + 1}")
+            self.logger.info(f"Finished Generation {gen}")
 
         self.logger.info("Simulation loop finished successfully")
         self.remove_checkpoint()
@@ -150,7 +155,6 @@ class Simulation:
         }
         with open(self.checkpoint_path, 'wb') as f:
             pickle.dump(state, f)
-        self.logger.info(f"Checkpoint saved for generation {self.generation}")
 
     def load_checkpoint(self):
         if self.checkpoint_path.exists():
@@ -166,4 +170,3 @@ class Simulation:
     def remove_checkpoint(self):
         if self.checkpoint_path.exists():
             self.checkpoint_path.unlink()
-            self.logger.info("Simulation complete. Checkpoint removed.")

@@ -2,7 +2,7 @@
 import numpy as np
 import math
 from typing import Dict, List
-from .neat import NEATGenome, Gene
+from .neat import NEATGenome, Gene, NodeGene, ACTIVATION_FUNCTIONS
 
 class NEATNetwork:    
     def __init__(self, genome: NEATGenome):
@@ -42,40 +42,36 @@ class NEATNetwork:
         if len(inputs) != self.genome.num_sensory_inputs:
             raise ValueError(f"Expected {self.genome.num_sensory_inputs} sensory inputs, got {len(inputs)}")
         
-        self.nodes = {node_id: 0.0 for node_id in self.genome.nodes}
+        self.nodes = {node_id: 0.0 for node_id in self.genome.nodes.keys()}
         
-        # Set sensory and bias node values
         for i, value in enumerate(inputs):
             self.nodes[i] = value
         self.nodes[self.genome.bias_node_id] = 1.0
         
-        # Propagate through hidden layers
         sorted_layers = sorted(list(set(self.node_layers.values())))
         
         for layer in sorted_layers:
             if layer == 0: continue
 
             for node_id in [n for n, l in self.node_layers.items() if l == layer]:
-                # Skip output nodes in this loop
-                if node_id >= self.genome.num_inputs: continue
-
                 node_sum = 0.0
                 for gene in self.genome.genes:
                     if gene.enabled and gene.out_node == node_id:
                         node_sum += self.nodes.get(gene.in_node, 0.0) * gene.weight
-                
-                # Apply activation function only to hidden nodes
-                self.nodes[node_id] = math.tanh(node_sum)
+
+                # Default to tanh if a node somehow doesn't have a gene (should not happen!)
+                node_gene = self.genome.nodes.get(node_id)
+                if node_gene:
+                    activation_func = ACTIVATION_FUNCTIONS.get(node_gene.activation, math.tanh)
+                    self.nodes[node_id] = activation_func(node_sum)
         
+        # Extract outputs, applying a consistent tanh for smooth control
         outputs = []
         for i in range(self.genome.num_outputs):
             node_id = self.genome.num_inputs + i
-            output_sum = 0.0
-            for gene in self.genome.genes:
-                if gene.enabled and gene.out_node == node_id:
-                    output_sum += self.nodes.get(gene.in_node, 0.0) * gene.weight
-
-            outputs.append(output_sum)
+            # The final output value is the node's already-calculated value
+            output_value = self.nodes.get(node_id, 0.0)
+            outputs.append(math.tanh(output_value))
         
         return np.array(outputs)
 

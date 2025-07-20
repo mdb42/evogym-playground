@@ -1,7 +1,15 @@
 # src/neat/neat.py
 import numpy as np
+import math
 import random
 from typing import Dict, List, Tuple, Optional
+
+ACTIVATION_FUNCTIONS = {
+    'tanh': math.tanh,
+    'sigmoid': lambda x: 1.0 / (1.0 + math.exp(-x)),
+    'relu': lambda x: max(0.0, x),
+    'identity': lambda x: x,
+}
 
 _genome_id_counter = 0
 def get_new_genome_id():
@@ -36,6 +44,18 @@ class Gene:
         return Gene(self.in_node, self.out_node, self.weight, 
                    self.enabled, self.innovation)
 
+
+class NodeGene:
+    """A node (neuron) with its own activation function."""
+    def __init__(self, node_id: int):
+        self.id = node_id
+        self.activation = 'tanh' # Default activation
+
+    def copy(self):
+        new_node = NodeGene(self.id)
+        new_node.activation = self.activation
+        return new_node
+
 class NEATGenome:    
     def __init__(self, num_inputs: int, num_outputs: int, key: int = None):
         self.key = key if key is not None else get_new_genome_id()
@@ -43,15 +63,14 @@ class NEATGenome:
         self.bias_node_id = num_inputs # The bias node is the last input node
         # Total nodes = sensors + bias
         self.num_inputs = num_inputs + 1
-
         self.num_outputs = num_outputs
         self.genes: List[Gene] = []
-        self.nodes = set()
+        self.nodes: Dict[int, NodeGene] = {}
         self.fitness = None
         
         # Initialize nodes
         for i in range(self.num_inputs + self.num_outputs):
-            self.nodes.add(i)
+            self.nodes[i] = NodeGene(i)
         
         self._initialize_minimal_connections()
 
@@ -64,11 +83,9 @@ class NEATGenome:
                     weight = random.uniform(-2.0, 2.0)
                     self.genes.append(Gene(i, output_node_id, weight))
         
-        # Ensure at least one connection per output
         for j in range(self.num_outputs):
             output_node_id = self.num_inputs + j
-            has_connection = any(g.out_node == output_node_id for g in self.genes)
-            if not has_connection:
+            if not any(g.out_node == output_node_id for g in self.genes):
                 random_input_id = random.randint(0, self.num_inputs - 1)
                 weight = random.uniform(-2.0, 2.0)
                 self.genes.append(Gene(random_input_id, output_node_id, weight))
@@ -80,6 +97,16 @@ class NEATGenome:
             self._mutate_add_connection()
         if random.random() < config.get('node_add_rate', 0.03):
             self._mutate_add_node()
+        if random.random() < config.get('activation_mutate_rate', 0.03):
+            self._mutate_activation()
+        if random.random() < config.get('enable_disable_rate', 0.05):
+            self._mutate_enable_disable()
+
+    def _mutate_enable_disable(self):
+        """Randomly toggles a gene's `enabled` status."""
+        if self.genes:
+            gene = random.choice(self.genes)
+            gene.enabled = not gene.enabled
 
     def _mutate_weights(self, config):
         for gene in self.genes:
@@ -91,8 +118,8 @@ class NEATGenome:
     
     def _mutate_add_connection(self):        
         for _ in range(20):
-            in_node = random.choice(list(self.nodes))
-            out_node = random.choice(list(self.nodes))
+            in_node = random.choice(list(self.nodes.keys()))
+            out_node = random.choice(list(self.nodes.keys()))
 
             if out_node < self.num_inputs:
                 continue
@@ -101,62 +128,68 @@ class NEATGenome:
             if self.creates_cycle(in_node, out_node):
                 continue
             
-            # If all checks pass, add the new gene
-            weight = random.uniform(-1.0, 1.0)
-            self.genes.append(Gene(in_node, out_node, weight))
+            self.genes.append(Gene(in_node, out_node, random.uniform(-1.0, 1.0)))
             return # Exit after adding a connection
     
     def _mutate_add_node(self):
         enabled_genes = [g for g in self.genes if g.enabled]
-        if not enabled_genes:
-            return
+        if not enabled_genes: return 
+        
         gene = random.choice(enabled_genes)
         gene.enabled = False
         
-        new_node = max(self.nodes) + 1 if self.nodes else 0
-        self.nodes.add(new_node)
+        new_node_id = max(self.nodes.keys()) + 1 if self.nodes else 0
+        self.nodes[new_node_id] = NodeGene(new_node_id)
         
-        self.genes.append(Gene(gene.in_node, new_node, 1.0))
-        self.genes.append(Gene(new_node, gene.out_node, gene.weight))
+        self.genes.append(Gene(gene.in_node, new_node_id, 1.0))
+        self.genes.append(Gene(new_node_id, gene.out_node, gene.weight))
+
+    def _mutate_activation(self):
+        """Randomly changes the activation function of a single non-input node."""
+        mutable_nodes = [n for n in self.nodes.values() if n.id >= self.num_inputs]
+        if not mutable_nodes: return
+            
+        node_to_mutate = random.choice(mutable_nodes)
+        node_to_mutate.activation = random.choice(list(ACTIVATION_FUNCTIONS.keys()))
+
 
     def adapt_io(self, new_num_sensory_inputs: int, new_num_outputs: int):
+        """
+        Adapts the genome to a new number of inputs and outputs after a
+        morphological mutation.
+        """
         # Adapt inputs (if body grows)
-        delta_in = new_num_sensory_inputs - self.num_sensory_inputs
-        if delta_in > 0:
-            for i in range(self.num_sensory_inputs, new_num_sensory_inputs):
-                self.nodes.add(i)
+        # The controller's padding/truncating handles any reduction
+        if new_num_sensory_inputs > self.num_sensory_inputs:
+            # Update counts and IDs
             self.num_sensory_inputs = new_num_sensory_inputs
             self.num_inputs = new_num_sensory_inputs + 1
             self.bias_node_id = new_num_sensory_inputs
+            
+            # Add new NodeGene objects for any new sensor or bias nodes
+            for i in range(self.num_inputs):
+                if i not in self.nodes:
+                    self.nodes[i] = NodeGene(i)
 
         # Adapt outputs
         delta_out = new_num_outputs - self.num_outputs
+        
+        # If outputs were added to the body
+        if delta_out > 0:
+            for _ in range(delta_out):
+                new_node_id = max(self.nodes.keys()) + 1 if self.nodes else 0
+                self.nodes[new_node_id] = NodeGene(new_node_id)
+                self.num_outputs += 1
 
-        for _ in range(delta_out):
-            new_node_id = max(self.nodes) + 1 if self.nodes else 0
-            self.nodes.add(new_node_id)
-            self.num_outputs += 1
-            # Connect the new output to the bias and a few random sensors
-            self.genes.append(Gene(self.bias_node_id, new_node_id, random.uniform(-1, 1)))
-            for _ in range(2): # Add two random sensory connections
-                random_sensor = random.randint(0, self.num_sensory_inputs - 1)
-                self.genes.append(Gene(random_sensor, new_node_id, random.uniform(-1, 1)))
+                self.genes.append(Gene(self.bias_node_id, new_node_id, random.uniform(-1, 1)))
 
-        # Remove output nodes
-        for _ in range(-delta_out):
-            if self.num_outputs <= 1: break # Don't remove the last output
-            # Find the last output node ID
-            last_output_node_id = self.num_inputs + self.num_outputs - 1
-            if last_output_node_id in self.nodes:
-                self.nodes.remove(last_output_node_id)
-            # Remove connections to this node
-            self.genes = [g for g in self.genes if g.out_node != last_output_node_id]
-            self.num_outputs -= 1
+        # NOTE: For simplicity, I don't remove output nodes if the body shrinks
+        # The controller method will simply ignore extra outputs from the network
 
     def copy(self):
         new_genome = NEATGenome(self.num_sensory_inputs, self.num_outputs, key=self.key)
         new_genome.genes = [g.copy() for g in self.genes]
-        new_genome.nodes = self.nodes.copy()
+        new_genome.nodes = {nid: n.copy() for nid, n in self.nodes.items()}
         new_genome.fitness = self.fitness
         return new_genome
     
@@ -181,55 +214,32 @@ class NEATGenome:
         num_outputs = np.sum((body == 3) | (body == 4))
         return NEATGenome(num_sensory_inputs, num_outputs)
 
-
 def crossover(parent1: NEATGenome, parent2: NEATGenome) -> NEATGenome:
     p1_fitness = parent1.fitness if parent1.fitness is not None else -float('inf')
     p2_fitness = parent2.fitness if parent2.fitness is not None else -float('inf')
 
     if p1_fitness > p2_fitness:
         better_parent, worse_parent = parent1, parent2
-    elif p2_fitness > p1_fitness:
+    else: # Handles p2 > p1 and p1 == p2
         better_parent, worse_parent = parent2, parent1
-    else:
-        # Equal fitness, randomly choose
-        better_parent, worse_parent = random.choice([(parent1, parent2), (parent2, parent1)])
     
     child = NEATGenome(parent1.num_sensory_inputs, parent1.num_outputs)
     
-    child.nodes = better_parent.nodes.copy()
+    child.nodes = {nid: n.copy() for nid, n in better_parent.nodes.items()}
     child.genes = []
     
-    # Preserve body information from better parent
-    if hasattr(better_parent, '_body'):
-        child._body = better_parent._body
-        child._connections = better_parent._connections
-    
-    # Create lookup dictionaries for quick access
     better_genes = {g.innovation: g for g in better_parent.genes}
     worse_genes = {g.innovation: g for g in worse_parent.genes}
     
-    # All innovations from better parent
-    all_innovations = set(better_genes.keys())
-    
-    # Process each innovation
-    for innovation in sorted(all_innovations):
+    for innovation in sorted(list(better_genes.keys())):
         better_gene = better_genes[innovation]
+        worse_gene = worse_genes.get(innovation)
         
-        if innovation in worse_genes:
-            # Matching gene - randomly inherit from either parent
-            worse_gene = worse_genes[innovation]
-            
-            if random.random() < 0.5:
-                new_gene = better_gene.copy()
-            else:
-                new_gene = worse_gene.copy()
-                
-            # Inherit disabled statuses
+        if worse_gene is not None:
+            new_gene = random.choice([better_gene, worse_gene]).copy()
             if not better_gene.enabled or not worse_gene.enabled:
-                # 75% chance to be disabled if either parent has it disabled
                 new_gene.enabled = random.random() > 0.75
         else:
-            # Disjoint/excess gene
             new_gene = better_gene.copy()
         
         child.genes.append(new_gene)
