@@ -16,6 +16,7 @@ from src.simulation.individual import RandomIndividual, NEATIndividual
 from .evolution import create_next_generation
 from .evaluation import evaluate_individual_worker, evaluate_phenotype
 from src.neat.species import SpeciesManager
+from src.simulation.reporting import Reporter
 
 class Simulation:
     def __init__(self, config, logger):
@@ -25,6 +26,7 @@ class Simulation:
         self.generation = 0
         self.species_manager = None
         self.checkpoint_path = Path("output/checkpoint.pkl")
+        self.reporter = Reporter(output_dir=Path("output"))
 
         # Try to load from a checkpoint, otherwise initialize
         if not self.load_checkpoint():
@@ -136,6 +138,8 @@ class Simulation:
                 f"Generation {gen} Stats - Best: {best_fitness:.2f} (Robot {best_idx}), "
                 f"Avg: {avg_fitness:.2f}"
             )
+
+            self.reporter.log_generation(gen, self.population, self.species_manager)
             
             self.logger.info("Saving best individual...")
             self.save_best_individual(best_individual, best_fitness)

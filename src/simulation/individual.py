@@ -37,6 +37,12 @@ class BaseIndividual(ABC):
         self.id = BaseIndividual._id_counter
         BaseIndividual._id_counter += 1
 
+    @property
+    @abstractmethod
+    def complexity(self) -> dict:
+        """Returns a dictionary of complexity metrics (Nodes, connections, whatever to report on)."""
+        pass
+
     @abstractmethod
     def copy(self) -> "BaseIndividual":
         pass
@@ -114,6 +120,11 @@ class RandomIndividual(BaseIndividual):
         super().__init__(body, connections)
         self.env_name = env_name
         self._action_space = None
+    
+    @property
+    def complexity(self) -> dict:
+        """A random individual has no brain complexity."""
+        return {'nodes': 0, 'connections': 0}
 
     def controller(self, obs):
         if self._action_space is None:
@@ -141,6 +152,14 @@ class NEATIndividual(BaseIndividual):
             self.genome = NEATGenome.create_for_morphology(body)
 
         self._network = NEATNetwork(self.genome)
+
+    @property
+    def complexity(self) -> dict:
+        """Returns the complexity of the NEAT genome."""
+        return {
+            'nodes': len(self.genome.nodes),
+            'connections': len([g for g in self.genome.genes if g.enabled])
+        }
 
     def copy(self) -> "NEATIndividual":
         return NEATIndividual(self.body.copy(), self.connections, self.genome.copy(), neat_config=copy.deepcopy(self.neat_config))
