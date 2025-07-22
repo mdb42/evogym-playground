@@ -6,44 +6,43 @@ import os
 from datetime import datetime
 
 DEFAULT_CONFIG = {
-    "population_size": 500,
+    "population_size": 1000,
     "max_generations": 500,
     "env": "Walker-v0",
-    "episode_steps": 1500,
+    "episode_steps": 2000,
     "render": True,
-    "log_level": "WARNING",
+    "log_level": "INFO",
     "robot_size": [5, 5],
     "mutation_rate": 0.1,
     "mutation_amount": 0.25,
     "crossover_rate": 0.7,
-    "elitism": 3,
+    "elitism": 5,
     "tournament_size": 5,
     "control_type": "neat",
     
     "scheduler_config": {
         "enable_parameter_scheduling": True,
-        "pressure_wave_frequency": 25,
-        "min_species_for_injection": 4,
-        "global_stagnation_limit": 15
+        "global_stagnation_limit": 40,
+        "lifeless_limit": 20
     },
     
     "neat_config": {
-        "parent_selection_cutoff": 0.3,
-        "interspecies_crossover_chance": 0.001,
-        "compatibility_threshold": 2.0,
-        "target_species": 6,
+        "parent_selection_cutoff": 0.5,
+        "compatibility_threshold": 4.0,
+        "target_species": 8,
+        "interspecies_crossover_chance": 0.005,
         "elitism_per_species": 2,
         "excess_coefficient": 1.0,
         "disjoint_coefficient": 1.0,
         "weight_coefficient": 0.4,
-        "crossover_rate": 0.75,
-        "stagnation_threshold": 20,
-        "enable_disable_rate": 0.01,
+        "crossover_rate": 0.5,
+        "stagnation_threshold": 30,
+        "enable_disable_rate": 0.02,
         "activation_mutate_rate": 0.03,
         "weight_mutation_rate": 0.9,
         "weight_perturb_rate": 0.9,
         "weight_mutation_power": 0.4,
-        "connection_add_rate": 0.2,
+        "connection_add_rate": 0.3,
         "node_add_rate": 0.06
     },
     "save_best_every": 5,

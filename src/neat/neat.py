@@ -75,20 +75,11 @@ class NEATGenome:
         self._initialize_minimal_connections()
 
     def _initialize_minimal_connections(self):
-        # Connect each input to each output with high probability
-        for i in range(self.num_inputs):
-            for j in range(self.num_outputs):
-                if random.random() < 0.8:  # 80% chance to connect
-                    output_node_id = self.num_inputs + j
-                    weight = random.uniform(-2.0, 2.0)
-                    self.genes.append(Gene(i, output_node_id, weight))
-        
+        # Start with just bias connections to outputs
         for j in range(self.num_outputs):
             output_node_id = self.num_inputs + j
-            if not any(g.out_node == output_node_id for g in self.genes):
-                random_input_id = random.randint(0, self.num_inputs - 1)
-                weight = random.uniform(-2.0, 2.0)
-                self.genes.append(Gene(random_input_id, output_node_id, weight))
+            weight = random.uniform(-2.0, 2.0)
+            self.genes.append(Gene(self.bias_node_id, output_node_id, weight))
     
     def mutate(self, config: Dict):
         if random.random() < config.get('weight_mutation_rate', 0.8):
