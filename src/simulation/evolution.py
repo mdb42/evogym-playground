@@ -65,9 +65,13 @@ def _create_neat_next_generation(population, species_manager, config):
             else: # Catastrophic failure, repopulate randomly
                 break 
 
-        # Only the top 50% of a species can be parents
+        # Only the top X% of a species can be parents
         species.members.sort(key=lambda g: g.fitness, reverse=True)
-        cutoff = max(1, len(species.members) // 2)
+        
+        # Calculate the cutoff for parent selection
+        cutoff_pct = neat_config.get('parent_selection_cutoff', 0.2)
+        cutoff = max(1, int(len(species.members) * cutoff_pct))
+
         parent_pool = species.members[:cutoff]
 
         # Select using a tournament

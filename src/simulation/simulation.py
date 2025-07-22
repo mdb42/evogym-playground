@@ -17,6 +17,8 @@ from .evolution import create_next_generation
 from .evaluation import evaluate_individual_worker, evaluate_phenotype
 from src.neat.species import SpeciesManager
 from src.simulation.reporting import Reporter
+from src.simulation.scheduler import Scheduler
+from src.utils import DEFAULT_CONFIG
 
 class Simulation:
     def __init__(self, config, logger):
@@ -27,6 +29,7 @@ class Simulation:
         self.species_manager = None
         self.checkpoint_path = Path("output/checkpoint.pkl")
         self.reporter = Reporter(output_dir=Path("output"))
+        self.scheduler = Scheduler(self.config, self.logger)
 
         # Try to load from a checkpoint, otherwise initialize
         if not self.load_checkpoint():
@@ -122,13 +125,19 @@ class Simulation:
 
         for gen in range(start_gen, self.config['max_generations']):
             self.generation = gen
-            self.logger.info(f"\n=== Generation {gen + 1}/{self.config['max_generations']} ===")
             
+            # Dynamic parameter scheduling
+            if gen > 0:
+                self.logger.info(f"Applying scheduler for generation {gen + 1}")
+                self.config = self.scheduler.check_and_apply(gen, self.population, self.species_manager)
+
             if gen > start_gen:
                 self.population = create_next_generation(
                     self.population, self.species_manager, self.config
                 )
-            
+
+            self.logger.info(f"\n=== Starting Generation {gen + 1}/{self.config['max_generations']} ===")
+
             # Evaluate
             best_fitness, best_individual, best_idx = self.evaluate_population()
             
