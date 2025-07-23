@@ -25,7 +25,7 @@ branson773@live.missouristate.edu}
 \maketitle
 
 \begin{abstract}
-This paper presents a from-scratch implementation of NeuroEvolution of Augmenting Topologies (NEAT) applied to the coevolution of morphology and control in soft robots within the EvolutionGym framework. The study focuses on walker robots, exploring how simultaneous evolution of body structure and neural network controllers can produce effective locomotion strategies.
+This paper presents a from-scratch implementation of NeuroEvolution of Augmenting Topologies (NEAT) applied to the coevolution of morphology and control in soft robots within the EvolutionGym framework. The implementation achieves a fitness of 5.61 on the Walker-v0 task, representing a 52\% improvement over the random control baseline of 3.68. Key design decisions include using 80\% initial network connectivity rather than minimal topology to accelerate early evolution, and developing a dynamic parameter scheduler that adjusts evolutionary pressures based on population dynamics. The study reveals critical insights about NEAT in practice: speciation successfully protects innovation (enabling inferior gaits to evolve into superior strategies), but species count control proved unstable with fluctuations from 1 to 29 species. The stagnation detection mechanism allowed a 250-generation plateau due to micro-improvements repeatedly resetting intervention counters. Despite these challenges, the implementation demonstrates that each NEAT component—crossover, speciation, activation diversity, and dynamic I/O adaptation—contributes to evolving qualitatively different locomotion behaviors. The work provides a foundation for evolutionary soft robotics research, with complete source code available for reproduction and extension.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -35,43 +35,250 @@ NEAT, neuroevolution, soft robotics, coevolution, morphology, neural networks, E
 \section{Introduction}
 The design of effective controllers for soft robots presents unique challenges due to their high-dimensional, non-linear dynamics and complex morphological properties. Traditional control approaches often struggle with the computational complexity and adaptability requirements of soft robotic systems. Neuroevolutionary methods, particularly NeuroEvolution of Augmenting Topologies (NEAT), offer promising alternatives by simultaneously optimizing both neural network topology and parameters.
 
-This study implements NEAT from scratch and applies it to the coevolution of morphology and control in soft robots using the EvolutionGym framework \cite{evogym2021}. The focus is on walker robots, examining how the simultaneous evolution of body structure and neural network controllers can discover effective locomotion strategies.
+This study implements NEAT from scratch and applies it to the coevolution of morphology and control in soft robots using the EvolutionGym framework \cite{evogym2021}. The focus is on walker robots, examining how the simultaneous evolution of body structure and neural network controllers can discover effective locomotion strategies. The complete implementation is available at \url{https://github.com/mdb42/evogym-playground} \cite{branson2025evogym} for reproducibility and further experimentation.
+
+Neuroevolution takes a fundamentally different approach to creating neural networks. Instead of using backpropagation and gradient descent, populations of networks evolve using natural selection, selecting for desired traits over generations. NEAT \cite{stanley2002evolving} revolutionized the field by solving three key problems: First, it traditionally starts simple and complexifies, though practical implementations often begin with partial connectivity to accelerate progress. Second, it uses historical markings to track innovations, enabling meaningful crossover between different network structures. And third, it protects innovation through speciation—giving new ideas time to develop before competing with established solutions.
+
+In nature, brains didn't evolve in isolation—they co-evolved with the bodies they control. This co-evolution creates a tight coupling where changes in one component drive adaptations in the other. This implementation uses single-population cooperative co-evolution, where each individual contains both a body blueprint and a neural controller. They succeed or fail together, just like in nature. This approach can be powerful for robotics because it creates controllers that are inherently adapted to their morphology.
+
+Getting even one NEAT implementation working well can be fraught with challenges. NEAT requires careful orchestration of multiple interacting systems—historical markings for crossover, species management for diversity, and compatibility calculations for grouping. Once speciation is added, larger populations are needed to maintain sufficient diversity within each species. Since each individual requires physics simulation to evaluate, even with parallel processing, generations take significant time to compute. Parameter tuning requires extensive experimentation to find the sweet spot between exploration and exploitation.
+
+This research explores three fundamental questions: Can NEAT effectively co-evolve neural controllers alongside changing morphologies? How does speciation protect innovative body-brain combinations during evolution? What implementation challenges arise when adapting NEAT to soft robotics? Through systematic implementation and experimentation, this study demonstrates that NEAT can successfully evolve sophisticated locomotion behaviors, achieving fitness scores of 5.61 compared to 3.68 for random control baselines.
+
 
 \section{Related Work}
-The EvolutionGym benchmark \cite{evogym2021} provides a comprehensive framework for evolving soft robots, supporting both morphological and control optimization. This platform enables researchers to explore the complex interactions between robot structure and behavior in simulated environments.
+The EvolutionGym benchmark \cite{evogym2021} provides a comprehensive framework for evolving soft robots, supporting both morphological and control optimization. This platform enables researchers to explore the complex interactions between robot structure and behavior in simulated environments. EvolutionGym uses a voxel-based approach where each voxel can be one of four types: rigid voxels that provide structural support, soft voxels that are passive but flexible, vertical muscles that contract up and down, and horizontal muscles that contract side to side. This design space allows for rich morphological diversity while maintaining computational tractability.
 
-NEAT \cite{stanley2002evolving} revolutionized neuroevolution by introducing topology evolution through complexification, starting with minimal networks and gradually adding nodes and connections. This approach addresses the competing conventions problem and enables the discovery of appropriate network architectures alongside optimal weights.
+NEAT \cite{stanley2002evolving} revolutionized neuroevolution by introducing topology evolution through complexification, starting with minimal networks and gradually adding nodes and connections. This approach addresses the competing conventions problem and enables the discovery of appropriate network architectures alongside optimal weights. The key innovations of NEAT include: (1) a genetic encoding that tracks the historical origin of genes through innovation numbers, enabling meaningful crossover between networks with different topologies; (2) speciation that groups similar individuals together, protecting topological innovations; and (3) starting from minimal topology and complexifying over time, rather than simplifying from large random networks. While this minimal starting topology is theoretically elegant, practitioners often adapt this principle to domain-specific needs, balancing pure complexification against practical convergence times \cite{stanley2005real}.
 
-HyperNEAT \cite{stanley2009hypercube} extends NEAT's principles by using compositional pattern-producing networks (CPNs) to generate neural network weights based on geometric relationships, showing particular promise for spatially-structured problems.
+Previous work has demonstrated NEAT's effectiveness in various domains including game playing \cite{stanley2005real}, robot control \cite{clune2011performance}, and artificial life simulations \cite{lehman2011abandoning}. However, the application of NEAT to soft robotics with dynamic morphologies presents unique challenges. When robot bodies change through mutation, the number of sensors and actuators can vary, requiring neural controllers to adapt their input/output dimensions while maintaining functionality.
 
 \section{Methodology}
 This section describes the implementation of NEAT and its application to soft robot evolution within the EvolutionGym framework.
 
+\subsection{EvolutionGym Environment}
+EvolutionGym provides a soft body physics simulation using a voxel-based approach. Each voxel can be one of four types: rigid (structural support), soft (passive but flexible), vertical muscle (contracts up and down), or horizontal muscle (contracts side to side). For this study, the Walker-v0 task was selected as it represents the simplest locomotion challenge, requiring robots to maximize horizontal displacement over a fixed time period.
+
+Robots are initialized on a 5×5 voxel grid using EvolutionGym's \texttt{sample\_robot()} function, which generates random morphologies with guaranteed connectivity. The observation space provides position and velocity information for each voxel, resulting in a feature vector of size 2N where N is the number of non-empty voxels. The action space consists of actuation values for muscle voxels, constrained to [-1.0, 1.0], with the dimensionality equal to the number of muscle voxels in the morphology.
+
+The implementation interfaces with EvolutionGym through Gymnasium's standard API, creating environments with \texttt{gym.make()} and passing robot body and connection matrices as parameters. Each evaluation runs for 1500 timesteps with fitness calculated as the horizontal displacement of the robot's center of mass. Physics simulations that become unstable (a known issue with soft body dynamics) are detected and penalized with -100 fitness, ensuring evolutionary pressure against morphologies that stress the physics engine.
+
+For visualization and analysis, the system supports three render modes: human-viewable real-time rendering, RGB array capture for video generation at 30 FPS, and headless mode for efficient parallel evaluation. Best-performing individuals are automatically recorded as MP4 videos using imageio, with filenames encoding generation number and fitness score for easy identification.
+
+
 \subsection{NEAT Implementation}
-A complete NEAT implementation was developed from scratch, including:
+A complete NEAT implementation was developed from scratch, focusing on the core principles of complexification and speciation.
+
+\subsubsection{Genome Representation}
+Each genome consists of node genes and connection genes. Nodes represent neurons with configurable activation functions (tanh, sigmoid, ReLU, or identity), while connections encode weighted links between nodes with an enabled/disabled state. A global innovation counter tracks the historical origin of each gene, enabling meaningful crossover between different topologies.
+
+The genome structure maintains separate tracking for sensory inputs and the bias node. When initialized, genomes create nodes for all inputs (sensors plus bias) and outputs, with the bias node ID positioned after all sensory inputs. This design facilitates the dynamic I/O adaptation required for morphological mutations.
+
+The implementation uses 80\% initial connectivity between inputs and outputs rather than starting with minimal topology. If starting truly minimal, robots would lie motionless for hundreds of generations, waiting for lucky mutations to create basic connections. This pragmatic choice accelerates initial progress while maintaining NEAT's complexification principles. Each output node is guaranteed at least one connection to prevent completely inactive muscles.
+
+\subsubsection{Mutation Operators}
+The implementation includes several mutation types with configurable rates:
 \begin{itemize}
-    \item Genome representation with node and connection genes
-    \item Crossover operators that preserve topological structure
-    \item Mutation operators for adding nodes and connections
-    \item Speciation mechanism to protect topological innovation
-    \item Fitness sharing within species
+    \item Weight mutations (80\% chance): Gaussian perturbation with power 0.5 (90\%) or complete randomization to [-2.0, 2.0] (10\%), with final clamping to [-3.0, 3.0]
+    \item Add connection (5\% chance): Creates new links between existing nodes while preventing cycles through depth-first search validation
+    \item Add node (3\% chance): Splits existing connections, disabling the original and adding two new connections through the new node (incoming weight 1.0, outgoing preserves original weight)
+    \item Enable/disable (5\% chance): Toggles connection states, allowing temporary deactivation without losing genetic information
+    \item Activation function (3\% chance): Changes neuron activation types for hidden nodes only, preserving input/output node functionality
 \end{itemize}
 
-\subsection{Coevolution Framework}
-The study focuses on the coevolution of robot morphology and neural network controllers for walker robots. 
+\subsubsection{Crossover and Speciation}
+Crossover aligns genes based on innovation numbers, inheriting disjoint and excess genes from the fitter parent. When both parents share a gene, the offspring randomly inherits from either parent. Disabled genes have a 75\% chance of being re-enabled in offspring if either parent had the gene enabled.
 
-\subsection{Experimental Setup}
-Experiments were conducted using walker robots in the EvolutionGym environment.
+Speciation groups similar genomes using compatibility distance calculated from three factors with configurable coefficients: excess genes (c1=1.0), disjoint genes (c2=1.0), and average weight differences of matching genes (c3=0.4). For genomes with fewer than 20 genes, normalization is disabled to prevent artificial inflation of distances. Genomes within a compatibility threshold (initially 3.0) belong to the same species, competing primarily within their niche rather than against the global population.
+
+Each species maintains a representative member (updated each generation), tracks fitness history, and monitors stagnation through generations without improvement. Species younger than 5 generations receive protection from culling regardless of performance, allowing time for innovation to develop. The compatibility threshold dynamically adjusts each generation to maintain a target species count (default: 6), with the specific adjustment rules detailed in Section 3.4.3.
+
+\subsection{Morphology-Controller Co-evolution}
+The implementation evolves both robot morphology and neural controllers simultaneously. Each individual contains a body (5×5 voxel grid) and a NEAT genome controlling muscle actuations.
+
+\subsubsection{Morphological Mutations}
+Body mutations target 1-2 voxels per generation, determined by a Poisson distribution with rate equal to the mutation rate parameter (default 0.1). The mutation process follows specific rules based on voxel state:
+\begin{itemize}
+    \item Empty voxels (type 0): Always add a new voxel, randomly selecting from types 1-4 with equal probability
+    \item Occupied voxels: 50\% chance of removal (setting to type 0), 50\% chance of transformation to a different non-empty type
+\end{itemize}
+
+After each mutation, connectivity is verified using flood-fill algorithm starting from an arbitrary non-empty voxel. The mutation process attempts up to 10 different random modifications before accepting one that maintains connectivity. If no valid mutation is found, the original morphology is preserved. This ensures robots never fragment into disconnected components.
+
+For crossover, bodies use uniform crossover where each voxel position is randomly inherited from either parent with equal probability. The resulting child body undergoes the same connectivity verification, with up to 10 attempts to create a connected offspring before defaulting to copying one parent's body entirely.
+
+\subsubsection{Dynamic I/O Adaptation}
+When morphology changes, the neural network must adapt to varying numbers of sensors and actuators. Each non-empty voxel provides two sensory inputs (position and velocity), while each muscle voxel (types 3 and 4) requires one actuation output.
+
+The implementation handles this through an \texttt{adapt\_io()} mechanism that adjusts the genome structure when body mutations occur:
+\begin{itemize}
+    \item \textbf{Sensor addition}: When voxels are added, new input nodes are created in the genome. The bias node ID is updated to remain after all sensory inputs. These new inputs remain disconnected until evolution discovers useful connections.
+    \item \textbf{Actuator addition}: New muscle voxels trigger creation of output nodes in the genome. Each new output receives an initial connection from the bias node with a random weight in [-1.0, 1.0], ensuring immediate activity rather than dead actuators.
+    \item \textbf{Size reduction}: The implementation does not remove nodes when the body shrinks. Instead, the controller's \texttt{activate()} method pads sensor inputs with zeros if the network expects more inputs than available, or truncates if fewer are expected. Similarly, extra network outputs are ignored, using only the first N outputs where N is the current number of muscles.
+\end{itemize}
+
+This asymmetric approach (growing the network but not shrinking it) allows previously evolved control patterns to remain intact even if temporarily unused, potentially accelerating re-adaptation if similar morphologies re-emerge through mutation.
+
+\subsection{Dynamic Parameter Scheduling}
+Recognizing that static parameters limit evolutionary progress, the implementation includes a meta-evolutionary system that monitors population dynamics and adjusts parameters accordingly.
+
+\subsubsection{Progressive Phases}
+The scheduler implements three distinct phases with different parameter settings:
+\begin{itemize}
+    \item \textbf{Exploration} (generations 0-50): High mutation rates for broad search
+    \begin{itemize}
+        \item Morphology mutation rate: 0.15
+        \item Weight mutation power: 0.5
+        \item Connection add rate: 0.3
+        \item Node add rate: 0.1
+    \end{itemize}
+    \item \textbf{Optimization} (generations 50-150): Reduced rates to refine solutions
+    \begin{itemize}
+        \item Morphology mutation rate: 0.1
+        \item Weight mutation power: 0.25
+        \item Connection add rate: 0.15
+        \item Node add rate: 0.05
+    \end{itemize}
+    \item \textbf{Fine-tuning} (generations 150+): Minimal perturbation to polish champions
+    \begin{itemize}
+        \item Morphology mutation rate: 0.05
+        \item Weight mutation power: 0.15
+        \item Connection add rate: 0.08
+        \item Node add rate: 0.03
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Stagnation Intervention}
+The scheduler tracks the best fitness across generations and implements escalating interventions:
+\begin{itemize}
+    \item \textbf{Standard intervention} (15 generations without improvement): Multiplies weight mutation power, connection add rate, node add rate, and morphology mutation rate by 1.5
+    \item \textbf{Emergency intervention} (30 generations without improvement): Sets weight mutation power to 1.0, connection add rate to 0.5, morphology mutation rate to 0.3, and halves the compatibility threshold to force species reformation
+\end{itemize}
+
+Additionally, the scheduler detects premature convergence when fewer than 2 species exist and fitness variance drops below 0.1. In such cases, it reduces compatibility threshold by 30\%, increases mutation rate to 0.25, and injects new random individuals to replace the bottom 20\% of the population that falls below average fitness.
+
+\subsubsection{Adaptive Mechanisms}
+The compatibility threshold undergoes continuous adjustment every generation to maintain target species count (default: 6 species):
+\begin{itemize}
+    \item Emergency reduction by 50\% if stuck at 1 species for over 5 generations
+    \item 10\% reduction if species count is 4 or more below target
+    \item 2\% reduction if slightly below target
+    \item 2\% increase if above target
+    \item Bounds maintained between 2.0 and 10.0
+\end{itemize}
+
+Additional mechanisms include sinusoidal "pressure waves" that create cycles of exploration and exploitation. With a configurable frequency (default: 25 generations), the weight mutation power oscillates following $power = base\_power \times (1 + 0.3 \times \sin(2\pi \times generation / frequency))$. This creates a 30\% amplitude variation around baseline values, inspired by Milankovitch cycles that influence biodiversity through climate oscillations.
+
+The scheduler maintains a complete copy of the baseline configuration, applying modifications non-destructively each generation. This ensures parameter schedules can be analyzed post-hoc and allows for consistent experimental reproduction.
+
+\subsection{Experimental Configuration}
+Experiments used populations of 500 individuals evolved for 400 generations. The Walker-v0 environment was configured with 1500 timesteps per evaluation. Parallel evaluation across CPU cores reduced computation time from days to hours per run. All experiments used consistent random seeds for reproducibility, with checkpointing enabled to resume interrupted runs.
+
+The fitness evaluation process used multiprocessing with a worker pool sized to CPU count. Each worker evaluated individuals in isolated environment instances to prevent interference. Video recording was enabled for the best individual each generation at 30 FPS, with filenames encoding fitness score and generation number for tracking progression.
+
+Tournament selection used a size of 5 individuals for parent selection. Elite preservation maintained the top 3 individuals across generations. Crossover probability was set at 75\% within species, with a 0.1\% chance of interspecies crossover to allow limited genetic flow between niches. Only the top 30\% of each species was eligible for reproduction, ensuring selection pressure within species.
+
+The implementation saved best robot morphologies every 5 generations as NumPy archives containing body and connection matrices. Comprehensive logging tracked per-generation statistics (best fitness, average fitness, species count) and per-species metrics (age, stagnation, member count, adjusted fitness) in CSV format. Additionally, a human-readable Markdown report documented species lineages, extinction events, and breakthrough moments throughout evolution.
 
 \section{Results}
-This section presents the results of applying NEAT to morphology-control coevolution in soft robots.
+This section presents the results of applying NEAT to morphology-control coevolution in soft robots. The implementation achieved a final best fitness of 5.61, representing a 52\% improvement over the random control baseline of 3.68.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{scheduler_00_fitness.png}}
+\caption{Fitness progression over 400 generations showing best and average fitness. Three distinct phases are visible: rapid improvement (0-50), extended plateau (50-300), and breakthrough (300-400).}
+\label{fig:fitness}
+\end{figure}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{scheduler_00_species.png}}
+\caption{Species count dynamics throughout evolution. High variability indicates active speciation and extinction events, with peaks reaching 29 species.}
+\label{fig:species}
+\end{figure}
+
+\subsection{Evolutionary Progression}
+Figure \ref{fig:fitness} reveals three distinct phases in the evolutionary process:
+
+\textbf{Exploration Phase (Generations 0-50):} Rapid fitness improvement from 0.7 to approximately 4.5 demonstrates successful discovery of basic locomotion strategies. The high mutation rates and structural changes in this phase enabled quick exploration of the morphology-control space. Random control baseline experiments showed that aligning vertical muscles in columns creates hopping motion, achieving fitness of 3.68 through purely morphological optimization.
+
+\textbf{Plateau Phase (Generations 50-300):} An extended stagnation period where best fitness barely improved while average fitness actually decreased. This 250-generation plateau reveals critical implementation details about the stagnation detection mechanism. The fitness progression from 4.5 to 4.8 over this period represents numerous micro-improvements that repeatedly reset the 15-generation stagnation counter, preventing intervention triggers. Each marginal gain—however small—was treated as "improvement" by the detection system. Additionally, the phase-based scheduling took precedence over stagnation detection, with the predetermined "optimization phase" parameters constraining evolution regardless of actual progress. The reduced mutation rates (from 0.15 to 0.1 for morphology, 0.5 to 0.25 for weights) became too conservative before the population had adequately explored the solution space. This highlights a conflict in the scheduler's design: the fixed, generation-based phases overrode the reactive, performance-based stagnation triggers, preventing the system from adapting to its own lack of progress.
+
+\textbf{Breakthrough Phase (Generations 300-400):} Emergency interventions finally triggered when the micro-improvements ceased entirely, with dramatically increased mutation power (1.0), forced species merging through halved compatibility thresholds, and aggressive structural changes. The fitness jumped from 4.8 to 5.61, validating the concept of dynamic scheduling while highlighting the need for better-tuned intervention timing and more sophisticated improvement detection.
+
+\subsection{Species Dynamics}
+Figure \ref{fig:species} shows extreme fluctuations in species count, ranging from single-species convergence to explosions of up to 29 species. These fluctuations reveal that the 2\% adjustment rate for compatibility thresholds proved too gentle for the rapid evolutionary dynamics. When speciation events occurred, the threshold adjusted too slowly to compensate, allowing runaway fragmentation. Conversely, when species collapsed, the emergency 50\% reduction often overcompensated, causing pendulum swings between extremes. The system never stabilized near the target of 6 species, instead oscillating wildly throughout evolution.
+
+The speciation mechanism successfully demonstrated its core value despite control instability: protecting innovation. Early experiments showed powerful jumpers with synchronized vertical muscles achieving 3.57 fitness would dominate without speciation. With speciation enabled, peculiar robots with shuffling, crawling gaits (initially only 1.17 fitness) survived within protected niches. Given time to optimize, these alternative strategies evolved into superior solutions, with descendants achieving 4.18 fitness through discovering more efficient locomotion patterns than pure jumping.
+
+\subsection{Controller Evolution}
+The progression from random to neural control revealed unexpected challenges. Initial neural networks with 80\% connectivity actually decreased performance to 3.05, despite producing more biological-looking locomotion. The solution space explosion—from optimizing morphology alone to simultaneously searching network configurations—initially overwhelmed the evolutionary process.
+
+\begin{table}[htbp]
+\caption{Fitness Progression Through Implementation Stages}
+\label{tab:fitness_progression}
+\centering
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Implementation Stage} & \textbf{Best Fitness} \\
+\hline
+Random Control & 3.68 \\
+Neural Network (mutation only) & 3.05 \\
+With Crossover & 3.26 \\
+Protected Niche Evolution & 4.18 \\
+Full Sensation & 4.39 \\
+Enable/Disable + Activation Functions & 5.14 \\
+Dynamic Parameter Scheduling & 5.61 \\
+\hline
+\end{tabular}
+\end{table}
+
+Subsequent improvements demonstrated the value of each NEAT component:
+\begin{itemize}
+    \item \textbf{Crossover} (3.26 fitness): Enabled mixing of successful traits, though early attempts without proper alignment produced robots with "functionless body mass grafted onto functional lower bodies"
+    \item \textbf{Full sensation} (4.39 fitness): Providing position and velocity for all voxels enabled coordinated whole-body locomotion with rippling wave patterns
+    \item \textbf{Enable/disable genes and activation diversity} (5.14 fitness): Achieved the first true bipedal locomotion
+    \item \textbf{Dynamic scheduling} (5.61 fitness): Final breakthrough demonstrating meta-evolutionary parameter adaptation
+\end{itemize}
+
+\subsection{Parameter Sensitivity}
+The extended plateau reveals critical lessons about parameter scheduling. The stagnation detection's definition of "improvement" proved too sensitive—any fitness increase, however marginal, reset the counter. Combined with phase-based scheduling that overrode stagnation responses, the system required 250 generations before conditions aligned for intervention. Future implementations should use more sophisticated improvement metrics, such as requiring a minimum threshold of progress or tracking the rate of improvement rather than binary presence/absence.
+
+Species management parameters also require refinement. The compatibility threshold adjustments created a control system that constantly overshot its target, with adjustment rates mismatched to the speed of evolutionary dynamics. Future implementations should implement adaptive adjustment rates that scale with the magnitude of deviation from target species count, or use predictive control to anticipate the effects of threshold changes.
 
 \section{Conclusion}
 This study demonstrates a from-scratch implementation of NEAT applied to the coevolution of soft robot morphology and control. The work provides insights into how neuroevolutionary approaches can discover effective locomotion strategies through simultaneous optimization of body structure and neural network controllers.
 
-\section*{Acknowledgment}
+The implementation successfully achieved all core NEAT functionality, including historical innovation tracking, speciation with compatibility-based grouping, and complexification through structural mutations. Each component proved essential for evolving sophisticated behaviors—from the initial random control baseline of 3.68 fitness to the final achievement of 5.61 through neural control with dynamic parameter scheduling.
 
-The author would like to thank the professor for guidance throughout this project and acknowledge that the scope was adjusted from the original proposal due to time and resource constraints.
+Key contributions include demonstrating how speciation protects morphological-control innovations that initially underperform, implementing dynamic I/O adaptation that maintains controller functionality through morphological changes, and developing a meta-evolutionary scheduler that adjusts parameters based on population dynamics. While the scheduler represents a promising approach to the perpetual parameter tuning problem, results indicate that intervention timing and species management thresholds require further refinement.
+
+The progression videos make visible what is sometimes difficult to see in fitness graphs alone—how each NEAT component enables qualitatively different behaviors. Random controllers produce hopping through aligned vertical muscles, basic neural control creates more biological gaits, speciation preserves alternative locomotion strategies, and full sensation enables coordinated whole-body movement patterns.
+
+Future work should pursue several research directions:
+
+\begin{enumerate}
+\item \textbf{True minimal topology initialization}: Implementing pure NEAT complexification would test the algorithm's bootstrapping capabilities. Preliminary experiments reveal a challenging deceptive fitness landscape—after 100 generations with minimal networks, robots optimize for rolling after falling rather than walking, as sparse initial connections cannot discover coordinated control before this local optimum. Solutions include:
+\begin{itemize}
+    \item Fitness shaping: penalizing orientation changes and rewarding upright stability
+    \item Curriculum learning: evolving for muscle activity before locomotion
+    \item Hybrid initialization: ensuring minimal connectivity while preserving complexification potential
+\end{itemize}
+These findings validate the pragmatic 80\% connectivity choice in this study.
+
+\item \textbf{Parameter refinement}: The extended plateau and species instability suggest specific improvements:
+\begin{itemize}
+    \item Reducing stagnation thresholds from 15-30 to 5-10 generations
+    \item Implementing adaptive or predictive species control to prevent oscillations
+    \item Decoupling phase-based scheduling from performance-based interventions
+\end{itemize}
+
+\item \textbf{Task generalization}: Expanding to climbing, jumping, and carrying tasks would test robustness across different locomotion challenges, each potentially requiring task-specific adaptations.
+
+\item \textbf{Degradation studies}: The original vision of systematic damage testing remains valuable for real-world applications, examining how evolved controllers respond to component failure or morphological damage.
+
+\item \textbf{Architectural extensions}: HyperNEAT could exploit geometric regularities in larger morphologies, potentially scaling to more complex soft robotic systems.
+\end{enumerate}
+
+This work demonstrates that even a single, well-implemented neuroevolutionary system can achieve meaningful results in the challenging domain of morphology-control coevolution. The complete implementation, including dynamic scheduling and comprehensive logging, provides a foundation for future research in evolutionary soft robotics.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
